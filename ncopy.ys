@@ -1,0 +1,206 @@
+#/* $begin ncopy-ys */
+##################################################################
+# ncopy.ys - Copy a src block of len words to dst.
+# Return the number of positive words (>0) contained in src.
+#
+# Include your name and ID here.
+# 刘劲锋 516030910237
+# 增加了iaddq指令，就不需要先mv一次了，在某些地方也不需要andq了
+# 修改mr和ir的顺序，避免数据冒险
+# 将循环展开为九重+二重+一重 （重点！！）
+# 这个时候加上去掉循环末尾的额外两次指针移动，可以加快很多（！！）
+# 但是去掉这个移动，会导致九重后面接二重时候，指针位置不对
+# 通过暴力复制两个版本的二重循环（2~7的时候直接二重和超过9之后再跳到二重，指针位置不同）
+# 四个版本的一重循环（其实只要跑一次，因为二重结束要么剩一个要么结束）
+# （四个版本分别为，只有1，2~8单数剩1，超过9之后，九重到二重到一，或者九重直接到一）
+# (并且将部分收尾内嵌至循环结尾处)
+# (修改判断顺序：九重与二重结束时候，先判断是否结束，再看是否进行一次，提高了0.2分)
+# (遵循上述思想，拿个59分不成问题，后面的精巧思路在于，首位优化和某些jmp的顺序调整（半算半测试出来的）)
+# 如此一来，解决了问题，并且很快，测试60分, CPE 7.59。
+# Describe how and why you modified the baseline code.
+#
+##################################################################
+# Do not modify this portion
+# Function prologue.
+# %rdi = src, %rsi = dst, %rdx = len
+ncopy:
+##################################################################
+# You can modify this portion
+	# Loop header	
+    iaddq $-9, %rdx
+    jge Loopf
+	iaddq $8, %rdx
+	jg TTwoN
+	mrmovq (%rdi), %r10
+	je OOne
+	ret
+OOne:	
+	rmmovq %r10, (%rsi)	
+TM:
+	andq %r10, %r10	
+	jle Done	
+	iaddq $1, %rax
+	ret
+TTwoLoop:
+	iaddq $16, %rdi
+	iaddq $16, %rsi	
+TTwoN:
+    mrmovq (%rdi), %r10
+	mrmovq 8(%rdi), %r11	
+	rmmovq %r10, (%rsi)	
+	rmmovq %r11, 8(%rsi)	
+	andq %r10, %r10
+	jle TTwoNpos		
+	iaddq $1, %rax	
+TTwoNpos:
+	andq %r11, %r11
+	jle TTwoNE		
+	iaddq $1, %rax		
+TTwoNE:
+	iaddq $-2, %rdx
+	jg TTwoLoop
+	jne Done
+TTone:
+	mrmovq 16(%rdi), %r10		
+	rmmovq %r10, 16(%rsi)	
+	andq %r10, %r10
+	jle Done	
+	iaddq $1, %rax
+	ret
+CE:
+	iaddq $72, %rdi
+	iaddq $72, %rsi
+Loopf:	
+    mrmovq (%rdi), %r10	
+    mrmovq 8(%rdi), %r11
+    mrmovq 16(%rdi), %r12
+    mrmovq 24(%rdi), %r13
+	andq %r10, %r10	
+	rmmovq %r10, (%rsi)	
+    rmmovq %r11, 8(%rsi)
+    rmmovq %r12, 16(%rsi)
+    rmmovq %r13, 24(%rsi)
+
+	jle Npos		
+	iaddq $1, %rax		
+Npos:
+	andq %r11, %r11
+	jle Nposs
+	iaddq $1, %rax
+Nposs :
+	andq %r12, %r12
+	jle Nposss
+	iaddq $1, %rax
+Nposss :
+	andq %r13, %r13
+	jle Npossss
+	iaddq $1, %rax
+Npossss:
+    mrmovq 32(%rdi), %r10	# read val from src..
+    mrmovq 40(%rdi), %r11
+    mrmovq 48(%rdi), %r12
+    mrmovq 56(%rdi), %r13
+	mrmovq 64(%rdi), %r9
+	
+	rmmovq %r10, 32(%rsi)	# ...and store it to dst
+    rmmovq %r11, 40(%rsi)
+    rmmovq %r12, 48(%rsi)
+    rmmovq %r13, 56(%rsi)
+	rmmovq %r9, 64(%rsi)
+
+	andq %r10, %r10	
+	jle WW
+	iaddq $1, %rax
+WW:	
+
+	andq %r11, %r11
+	jle NEW11
+	andq %r12, %r12
+	jle NEW12
+	andq %r13, %r13
+	jle NEW13
+	andq %r9, %r9
+	jle NEW14
+	iaddq $4, %rax
+	jmp OK
+
+NEW11:
+	andq %r12, %r12
+	jle NEW22
+NEW12:
+	andq %r13, %r13
+	jle NEW23
+NEW13:
+	andq %r9, %r9
+	jle NEW24
+NEW14:
+	iaddq $3, %rax
+	jmp OK
+NEW22:
+	andq %r13, %r13
+	jle NEW33
+NEW23:
+	andq %r9, %r9
+	jle NEW34
+NEW24:
+	iaddq $2, %rax
+	jmp OK
+NEW33:
+	andq %r9, %r9
+	jle OK
+NEW34:
+	iaddq $1, %rax
+OK:
+    iaddq $-9, %rdx
+    jge CE
+	iaddq $8, %rdx
+    jg TwoN
+	mrmovq 72(%rdi), %r10	
+	jne Done
+
+	andq %r10, %r10	
+	rmmovq %r10, 72(%rsi)	
+	jle Done	
+	iaddq $1, %rax
+	ret
+
+TwoLoop:
+	iaddq $16, %rdi
+	iaddq $16, %rsi	
+TwoN:
+    mrmovq 72(%rdi), %r10
+	mrmovq 80(%rdi), %r11	
+	rmmovq %r10, 72(%rsi)	
+	rmmovq %r11, 80(%rsi)	
+	andq %r10, %r10
+	jle TwoNpos		
+	iaddq $1, %rax	
+
+TwoNpos:
+	andq %r11, %r11
+	jle TwoNE
+	iaddq $1, %rax		
+TwoNE:
+	iaddq $-2, %rdx
+	jg TwoLoop
+	jne Done
+
+    mrmovq 88(%rdi), %r10	
+	rmmovq %r10, 88(%rsi)	
+	jmp TM
+
+
+
+			
+
+
+
+##################################################################
+# Do not modify the following section of code
+# Function epilogue.
+Done:
+	ret
+##################################################################
+# Keep the following label at the end of your function
+End:
+#/* $end ncopy-ys */
