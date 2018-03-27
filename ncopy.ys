@@ -4,7 +4,7 @@
 # Return the number of positive words (>0) contained in src.
 #
 # Include your name and ID here.
-# 刘劲锋 516030910237
+# *** ******
 # 增加了iaddq指令，就不需要先mv一次了，在某些地方也不需要andq了
 # 修改mr和ir的顺序，避免数据冒险
 # 将循环展开为九重+二重+一重 （重点！！）
